@@ -6,11 +6,18 @@
 
 ## 📦 Архитектура
 
-```
-[users-service] <-----> [Eureka] <-----> [company-service]
-     |                        ↑                     |
-     |                        ↓                     |
-[PostgreSQL: userdb]     Discovery Server     [PostgreSQL: companydb]
+```                   
+                        [Gateway]
+                            ↓
+         ┌──────────────┬──────────────┐
+         ↓                              ↓
+  [users-service]               [company-service]
+         ↓                              ↓
+[PostgreSQL: userdb]         [PostgreSQL: companydb]
+
+         ↑                              ↑
+         └─> [Eureka Discovery Server] <┘
+
 ```
 
 - **users-service**: Управление пользователями, CRUD + получение компании по ID.
@@ -23,7 +30,7 @@
 
 - Java 17
 - Spring Boot, Spring Data JPA
-- Spring Cloud Eureka
+- Spring Cloud Eureka, Gateway
 - PostgreSQL (через Docker)
 - Docker, Docker Compose
 - Postman (для тестирования)
@@ -41,6 +48,8 @@ java-project/
 ├── users-service/
 │   └── Dockerfile
 ├── discovery-service/
+│   └── Dockerfile
+├── gateway-service/
 │   └── Dockerfile
 ├── docker-compose.yml
 └── README.md

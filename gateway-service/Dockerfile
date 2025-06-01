@@ -1,7 +1,6 @@
 FROM openjdk:17-jdk-slim
 LABEL authors="kasymovaelzada"
 
-RUN apt-get update && apt-get install -y curl
 VOLUME /tmp
 ARG JAR_FILE=target/*.jar
 COPY ${JAR_FILE} app.jar
