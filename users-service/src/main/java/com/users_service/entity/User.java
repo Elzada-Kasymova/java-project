@@ -1,4 +1,4 @@
-package com.users_service.repository;
+package com.users_service.entity;
 
 import jakarta.persistence.*;
 import lombok.Getter;

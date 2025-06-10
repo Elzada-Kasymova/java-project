@@ -10,7 +10,7 @@ import java.util.UUID;
 @Getter
 public class UserDTO {
     @JsonProperty("id")
-    private String id;
+    private UUID id;
 
     @JsonProperty("first_name")
     private String firstName;

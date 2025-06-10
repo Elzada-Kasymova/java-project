@@ -7,8 +7,8 @@
 ## 📦 Архитектура
 
 ```                   
-                        [Gateway]
-                            ↓
+                    [Gateway]
+                        ↓
          ┌──────────────┬──────────────┐
          ↓                              ↓
   [users-service]               [company-service]

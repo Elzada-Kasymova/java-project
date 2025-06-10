@@ -1,9 +1,10 @@
-package com.company_service.repository;
+package com.company_service.entity;
 
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.util.List;
 import java.util.UUID;
 
 @Setter
@@ -18,8 +19,8 @@ public class Company {
 
     @Column(nullable = false)
     private String name;
-
     private Double budget;
+    private List<UUID> users_id;
 
     @Override
     public String toString() {
@@ -27,6 +28,7 @@ public class Company {
                 "id=" + id +
                 ", name='" + name + '\'' +
                 ", budget=" + budget +
+                ", users_id=" + users_id +
                 '}';
     }
 

@@ -1,19 +1,20 @@
 package com.company_service.controller;
 
 import com.company_service.dto.*;
-import com.company_service.repository.Company;
 import com.company_service.service.CompanyService;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-
-import java.util.*;
+import java.util.List;
+import java.util.UUID;
 
 @Slf4j
 @RestController
-@RequestMapping(path = "api/company")
+@RequestMapping("api/company")
 public class CompanyController {
 
     private final CompanyService companyService;
@@ -22,65 +23,82 @@ public class CompanyController {
         this.companyService = companyService;
     }
 
-    //---------ЗАПРОСЫ ДЛЯ COMPANY-SERVICE
+    // ----------- COMPANY-SERVICE -----------
 
-    //Получение информации об одной компании и всех его пользователей
-    @GetMapping(path = "one/{id}")
-    public CompanyWithUsersDTO getUsersByCompanyId(@PathVariable UUID id) {
+    // Получение информации об одной компании и всех ее пользователей
+    @GetMapping("one/{id}")
+    public CompanyWithUsersDTO getCompanyWithUsers(@PathVariable UUID id) {
+        log.info("Получение компании с пользователями по id: {}", id);
         return companyService.getCompanyWithUsers(id);
     }
 
-    //Создание компаний
+    // Создание компании
     @PostMapping
-    public Company createCompany(@RequestBody Company company) {
-        companyService.createCompany(company);
-        return company;
+    @ResponseStatus(HttpStatus.CREATED)
+    public CompanyDTO createCompany(@RequestBody @Valid CompanyCreateDTO companyCreateDTO) {
+        log.info("Создание компании с данными: {}", companyCreateDTO);
+        return companyService.createCompany(companyCreateDTO);
     }
 
-    //Обновление информации о компании
-    @PutMapping(path = "/{id}")
-    public ResponseEntity<Company> updateCompany(@PathVariable UUID id,
-                                                 @RequestBody CompanyUpdateDTO companyDTO) {
-        Optional<Company> updatedCompany = companyService.
-                updateCompany(id, companyDTO.getName(), companyDTO.getBudget());
-        return updatedCompany.map(ResponseEntity::ok).orElseGet(()
-                -> ResponseEntity.status(HttpStatus.NOT_MODIFIED).build());
+    // Обновление информации о компании
+    @PutMapping("/{id}")
+    public CompanyDTO updateCompany(@PathVariable UUID id,
+                                    @RequestBody @Valid CompanyUpdateDTO companyUpdateDTO) {
+        log.info("Обновление компании id {} с данными: {}", id, companyUpdateDTO);
+        return companyService.updateCompany(id, companyUpdateDTO.getName(), companyUpdateDTO.getBudget());
     }
 
-    //Удаление компании, также удаляться все пользователи
-    @DeleteMapping(path = "/{id}")
-    public ResponseEntity<String> deleteCompany(@PathVariable UUID id) {
+
+    // Удаление компании
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteCompany(@PathVariable UUID id) {
+        log.info("Удаление компании id: {}", id);
         companyService.deleteCompany(id);
-        return ResponseEntity.status(HttpStatus.OK).body("Company deleted successfully");
     }
 
-    //Получение всех компаний и всех пользователей
-    @GetMapping(path = "all")
-    public List<CompanyUsersDTO> getAllUsersGroupedByCompany() {
-        return companyService.getAllCompanyAndUsers();
-    }
-    //--------------------
+    // Получение всех компаний
+    @GetMapping("all")
+    public Page<CompanyUsersDTO> getAllCompaniesWithUsers(Pageable pageable) {
+        log.info("Получение всех компаний с пользователями с пагинацией: {}", pageable);
+        return  companyService.getAllCompanyAndUsers(pageable);
 
-
-    //-----------ЗАПРОСЫ , КОТОРЫЕ ИСПОЛЬЗУЮТЬСЯ ДЛЯ USER-SERVICE
-
-    //Проверка валидности компании
-    @GetMapping(path ="check/{company_id}")
-    public boolean companyExists(@PathVariable UUID company_id) {
-        return companyService.checkCompany(company_id);
     }
 
-    //Получение только информации о компаниях
+    //Получение usersId
+    @PutMapping("/userid")
+    public ResponseEntity<Void> addUserToCompany(@RequestBody UserDTO userDTO) {
+        if (userDTO == null || userDTO.getId() == null || userDTO.getCompanyId() == null) {
+            return ResponseEntity.badRequest().build();
+        }
+
+        companyService.addUserToCompany(userDTO);
+        return ResponseEntity.ok().build();
+    }
+
+
+
+    // ----------- USER-SERVICE -----------
+
+    // Проверка валидности компании (для user-service)
+    @GetMapping("check/{companyId}")
+    public boolean companyExists(@PathVariable UUID companyId) {
+        log.info("Проверка существования компании с id: {}", companyId);
+        return companyService.checkCompany(companyId);
+    }
+
+    // Получение списка всех компаний
     @GetMapping
-    public CompanyListDTO getAllCompanies() {
+    public List<CompanyDTO> getAllCompanies() {
+        log.info("Получение списка всех компаний");
         return companyService.getAllCompaniesDTO();
     }
 
-    //Получение компании одного пользователя
-    @GetMapping(path="one/user/{company_id}")
-    public CompanyDTO getOneCompany (@PathVariable UUID company_id) {
-        return companyService.getOneCompany(company_id);
+    // Получение одной компании по id (для пользователя)
+    @GetMapping("one/user/{companyId}")
+    public CompanyDTO getOneCompany(@PathVariable UUID companyId) {
+        log.info("Получение компании по id: {}", companyId);
+        return companyService.getOneCompany(companyId);
     }
 
-    //-------------------------------
 }

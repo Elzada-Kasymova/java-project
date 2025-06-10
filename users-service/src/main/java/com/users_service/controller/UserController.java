@@ -1,11 +1,12 @@
 package com.users_service.controller;
 
 import com.users_service.dto.*;
-import com.users_service.repository.User;
 import com.users_service.service.UserService;
+import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 
@@ -22,66 +23,69 @@ public class UserController {
         this.userService = userService;
     }
 
-    //--------ЗАПРОСЫ , КОТОРЫЕ ИСПОЛЬЗУЮТЬСЯ ДЛЯ COMPANY-SERVICE
-
-    //Получение пользователей конкретной компании
+    // ----------- COMPANY-SERVICE -----------
+    // Получение пользователей конкретной компании
     @GetMapping(path = "one/company/{company_id}")
     public UserResponseDTO getUsers(@PathVariable UUID company_id) {
+        log.info("Запрошены пользователи компании с ID: {}", company_id);
         return userService.getUsersOneCompany(company_id);
     }
 
-    //Удаление пользователей конкретной компании
+    // Удаление всех пользователей конкретной компании
     @DeleteMapping(path = "delete/users/{company_id}")
-    public ResponseEntity<String> deleteUsers (@PathVariable UUID company_id) {
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteUsers(@PathVariable UUID company_id) {
+        log.info("Удаление всех пользователей компании с ID: {}", company_id);
         userService.deleteUsersByCompanyId(company_id);
-        return ResponseEntity.status(HttpStatus.OK).body("Users deleted successfully");
     }
 
-    // Получение всех пользователей без информации о компании
+
+    // Получение всех пользователей
     @GetMapping
-    public UserListDTO getAllUsers() {
+    public List<UserDTO> getAllUsers() {
+        log.info("Запрошены все пользователи для Company-service");
         return userService.getAllUsers();
     }
 
-    //--------------------------------
-
-
-    //--------------ЗАПРОСЫ ДЛЯ USER-SERVICE
-
-    //Удаление пользователя
+    // ----------- USER-SERVICE -----------
+    // Удаление пользователя
     @DeleteMapping(path = "{id}")
-    public ResponseEntity<String> deleteUser(@PathVariable UUID id) {
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteUser(@PathVariable UUID id) {
+        log.info("Удаление пользователя с ID: {}", id);
         userService.deleteUserById(id);
-        return ResponseEntity.status(HttpStatus.OK).body("User deleted successfully");
     }
 
-    //Обновление пользователя
+    // Обновление пользователя
     @PutMapping(path = "{id}")
-    public User updateUser(
+    public UserDTO updateUser(
             @PathVariable UUID id,
-            @RequestBody UserUpdateDTO userUpdateDTO) {
-        return userService.updateUser(id, userUpdateDTO.getFirst_name(),
-                userUpdateDTO.getLast_name(), userUpdateDTO.getPhone_number());
+            @RequestBody @Valid UserUpdateDTO userUpdateDTO) {
+        log.info("Обновление пользователя с ID: {}", id);
+        return userService.updateUser(id, userUpdateDTO);
     }
 
-    //Создание нового пользователя - есть проверка на существование компании
+    // Создание нового пользователя
     @PostMapping
-    public User createUser(@RequestBody User user) {
-        return userService.createUser(user);
+    @ResponseStatus(HttpStatus.CREATED)
+    public UserDTO createUser(@RequestBody @Valid UserCreateDTO userCreateDTO) {
+        log.info("Создание нового пользователя: {} {}", userCreateDTO.getFirst_name(), userCreateDTO.getLast_name());
+        return userService.createUser(userCreateDTO);
     }
 
-    //Получение всех пользователей с информацией о компании
+    // Получение всех пользователей с информацией о компании
     @GetMapping(path = "all")
-    public List<UserWithCompanyDTO> getAllUsersAndCompany() {
-        return userService.getAllUsersAndCompany();
+    public Page<UserWithCompanyDTO> getAllUsersAndCompany(Pageable pageable) {
+        log.info("Получение всех пользователями и компаний с пагинацией: {}", pageable);
+        return userService.getAllUsersAndCompany(pageable);
     }
 
-    //Получение одного пользователя с информацией о компании
+    // Получение одного пользователя с информацией о компании
     @GetMapping(path = "one/{user_id}")
     public UserAndCompanyDTO getUserAndCompany(@PathVariable UUID user_id) {
+        log.info("Запрошен пользователь с ID: {} и его компания", user_id);
         return userService.getUserAndCompany(user_id);
     }
-
     //------------------------
 
 
