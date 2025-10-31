@@ -1,0 +1,22 @@
+# ===== DEV stage =====
+FROM maven:3.9.4-eclipse-temurin-17 AS dev
+WORKDIR /app
+
+# Сначала копируем pom.xml, чтобы кешировать зависимости
+COPY pom.xml .
+RUN mvn dependency:go-offline
+
+# Теперь копируем исходники
+COPY src ./src
+
+# Запускаем spring-boot:run для разработки
+CMD ["mvn", "spring-boot:run"]
+
+# ===== PROD stage =====
+FROM openjdk:17-jdk-slim
+LABEL authors="kasymovaelzada"
+VOLUME /tmp
+
+ARG JAR_FILE=target/*.jar
+COPY ${JAR_FILE} app.jar
+ENTRYPOINT ["java", "-jar", "/app.jar"]

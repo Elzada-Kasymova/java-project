@@ -1,14 +1,15 @@
 package com.users_service.dto;
 
-import lombok.Getter;
-import lombok.Setter;
-
+import java.time.Instant;
 import java.util.UUID;
 
-@Getter
-@Setter
-public class CompanyDTO {
-    private UUID id;
-    private String name;
-    private Double budget;
-}
+public record CompanyDTO(
+        UUID id,
+        String name,
+        String industry,
+        Double budget,
+        String address,
+        String country,
+        UUID userId,
+        Instant createdAt
+) {}

@@ -1,7 +1,8 @@
+version: '3.9'
 
 services:
   postgres-user:
-    image: postgres:13
+    image: postgres:13.10
     container_name: postgres-user
     environment:
       POSTGRES_DB: userdb
@@ -11,9 +12,11 @@ services:
       - "5433:5432"
     networks:
       - microservice-net
+    volumes:
+      - postgres_user_data:/var/lib/postgresql/data
 
   postgres-company:
-    image: postgres:13
+    image: postgres:13.10
     container_name: postgres-company
     environment:
       POSTGRES_DB: companydb
@@ -23,6 +26,91 @@ services:
       - "5434:5432"
     networks:
       - microservice-net
+    volumes:
+      - postgres_company_data:/var/lib/postgresql/data
+
+  postgres-activity:
+    image: postgres:13.10
+    container_name: postgres-activity
+    environment:
+      POSTGRES_DB: activitydb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5435:5432"
+    networks:
+      - microservice-net
+    volumes:
+      - postgres_activity_data:/var/lib/postgresql/data
+
+  postgres-notification:
+    image: postgres:13.10
+    container_name: postgres-notification
+    environment:
+      POSTGRES_DB: notificatiobdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5436:5432"
+    networks:
+      - microservice-net
+    volumes:
+      - postgres_notification_data:/var/lib/postgresql/data
+
+  postgres-deal:
+    image: postgres:13.10
+    container_name: postgres-deal
+    environment:
+      POSTGRES_DB: dealdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5437:5432"
+    networks:
+      - microservice-net
+    volumes:
+      - postgres_deal_data:/var/lib/postgresql/data
+
+  keycloak-postgres:
+    image: postgres:15
+    container_name: keycloak_postgres
+    environment:
+      POSTGRES_DB: keycloak
+      POSTGRES_USER: keycloak
+      POSTGRES_PASSWORD: keycloak
+    volumes:
+      - keycloak_postgres_data:/var/lib/postgresql/data
+    networks:
+      - microservice-net
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.2
+    container_name: keycloak
+    command: start-dev
+    environment:
+      KC_DB: postgres
+      KC_DB_URL_HOST: keycloak-postgres
+      KC_DB_URL_DATABASE: keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: admin
+      KC_HOSTNAME_STRICT: false
+      KC_HOSTNAME_STRICT_HTTPS: false
+      KC_PROXY: edge
+    ports:
+      - "9090:8080"
+    depends_on:
+      - keycloak-postgres
+    networks:
+      - microservice-net
+    healthcheck:
+        test: ["CMD", "curl", "-f", "http://localhost:8080/realms/crm-realm"]
+        interval: 10s
+        timeout: 5s
+        retries: 30
+        start_period: 90s
+
 
   discovery-service:
     build:
@@ -35,13 +123,16 @@ services:
       - microservice-net
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8761/actuator/health" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+
 
   gateway-service:
     build:
       context: ./gateway-service
+      dockerfile: Dockerfile.dev
     container_name: gateway-service
     ports:
       - "8080:8080"
@@ -52,48 +143,165 @@ services:
         condition: service_started
       company-service:
         condition: service_started
-    environment:
-      - SPRING_PROFILES_ACTIVE=default
-      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://discovery-service:8761/eureka
+      keycloak:
+        condition: service_healthy
     networks:
       - microservice-net
-
-
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
+      SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI: http://keycloak:8080/realms/crm-realm
   users-service:
     build:
       context: ./users-service
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: users-service
     ports:
       - "8000:8000"
+    volumes:
+      - ./users-service:/app
+      - ~/.m2:/root/.m2
     depends_on:
       - postgres-user
       - discovery-service
+    networks:
+      - microservice-net
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-user:5432/userdb
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
-    networks:
-      - microservice-net
 
   company-service:
     build:
       context: ./company-service
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     container_name: company-service
     ports:
       - "8090:8090"
+    volumes:
+      - ./company-service:/app
+      - ~/.m2:/root/.m2
     depends_on:
       - postgres-company
       - discovery-service
+    networks:
+      - microservice-net
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-company:5432/companydb
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
       EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
+
+  activity-service:
+    build:
+      context: ./activity-service
+      dockerfile: Dockerfile.dev
+    container_name: activity-service
+    ports:
+      - "8085:8085"
+    volumes:
+      - ./activity-service:/app
+      - ~/.m2:/root/.m2
+    depends_on:
+      - postgres-activity
+      - discovery-service
     networks:
       - microservice-net
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-activity:5432/activitydb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
+
+  notification-service:
+    build:
+      context: ./notification-service
+      dockerfile: Dockerfile.dev
+    container_name: notification-service
+    ports:
+      - "8086:8086"
+    volumes:
+      - ./notification-service:/app
+      - ~/.m2:/root/.m2
+    depends_on:
+      - postgres-notification
+      - discovery-service
+    networks:
+      - microservice-net
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-notification:5432/notificationdb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
+
+  deal-service:
+    build:
+      context: ./deal-service
+      dockerfile: Dockerfile.dev
+    container_name: deal-service
+    ports:
+      - "8087:8087"
+    volumes:
+      - ./deal-service:/app
+      - ~/.m2:/root/.m2
+    depends_on:
+      - postgres-deal
+      - discovery-service
+    networks:
+      - microservice-net
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-deal:5432/dealdb
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://discovery-service:8761/eureka
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    networks:
+      - microservice-net
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - microservice-net
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    container_name: kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    depends_on:
+      - zookeeper
+    networks:
+      - microservice-net
+
+volumes:
+  postgres_user_data:
+  postgres_company_data:
+  postgres_activity_data:
+  postgres_notification_data:
+  postgres_deal_data:
+  keycloak_postgres_data:
 
 networks:
   microservice-net:

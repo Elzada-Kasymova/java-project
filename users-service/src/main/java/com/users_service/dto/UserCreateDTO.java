@@ -3,24 +3,23 @@ package com.users_service.dto;
 import jakarta.validation.constraints.*;
 import lombok.Getter;
 import lombok.Setter;
-
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
-@Setter
 @Getter
+@Setter
 public class UserCreateDTO {
 
-    @NotBlank(message = "First name must not be blank")
-    @Size(max = 50, message = "First name must be at most 50 characters")
-    private String first_name;
+    @NotBlank(message = "First name is required")
+    private String firstName;
 
-    @NotBlank(message = "Last name must not be blank")
-    @Size(max = 50, message = "Last name must be at most 50 characters")
-    private String last_name;
+    @NotBlank(message = "Last name is required")
+    private String lastName;
 
-    @Pattern(regexp = "\\+?[0-9]{7,15}", message = "Invalid phone number format")
-    private String phone_number;
+    @Email(message = "Email must be valid")
+    @NotBlank(message = "Email is required")
+    private String email;
 
-    @NotNull(message = "Company ID is required")
-    private UUID company_id;
+    private List<UUID> companyIds = new ArrayList<>();
 }

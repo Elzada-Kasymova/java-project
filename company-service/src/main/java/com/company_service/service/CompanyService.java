@@ -1,19 +1,23 @@
 package com.company_service.service;
 
-import com.company_service.dto.*;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import com.company_service.dto.CompanyCreateDTO;
+import com.company_service.dto.CompanyDTO;
+import com.company_service.dto.CompanyUpdateDTO;
+
 import java.util.List;
 import java.util.UUID;
 
 public interface CompanyService {
-    List<CompanyDTO> getAllCompaniesDTO();
-    CompanyDTO createCompany(CompanyCreateDTO companyCreateDTO);
+
+    List<CompanyDTO> getAllCompanies();
+
+    CompanyDTO getCompanyById(UUID id);
+
+    CompanyDTO createCompany(CompanyCreateDTO dto);
+
+    CompanyDTO updateCompany(UUID id, CompanyUpdateDTO dto);
+
     void deleteCompany(UUID id);
-    CompanyDTO updateCompany(UUID id, String name, Double budget);
-    CompanyWithUsersDTO getCompanyWithUsers(UUID id);
-    Page<CompanyUsersDTO> getAllCompanyAndUsers(Pageable pageable);
-    CompanyDTO getOneCompany(UUID id);
-    boolean checkCompany(UUID id);
-    void addUserToCompany(UserDTO userDTO);
+
+    void clearUserId(UUID companyId);
 }

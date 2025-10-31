@@ -1,23 +1,25 @@
 package com.users_service.dto;
 
-import jakarta.validation.constraints.*;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.Size;
 import lombok.Getter;
 import lombok.Setter;
-
+import java.util.List;
 import java.util.UUID;
 
 @Getter
 @Setter
 public class UserUpdateDTO {
 
-    @Size(max = 50, message = "First name must be at most 50 characters")
+    @Size(max = 50)
     private String first_name;
 
-    @Size(max = 50, message = "Last name must be at most 50 characters")
+    @Size(max = 50)
     private String last_name;
 
-    @Pattern(regexp = "\\+?[0-9]{7,15}", message = "Invalid phone number format")
-    private String phone_number;
+    @Email
+    private String email;
 
-    private UUID company_id;
+    private List<UUID> companyIds;
+
 }

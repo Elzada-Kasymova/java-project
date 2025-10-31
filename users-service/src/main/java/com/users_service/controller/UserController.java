@@ -1,92 +1,68 @@
 package com.users_service.controller;
 
-import com.users_service.dto.*;
+import com.users_service.dto.UserCreateDTO;
+import com.users_service.dto.UserDTO;
+import com.users_service.dto.UserUpdateDTO;
 import com.users_service.service.UserService;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
-
 
 import java.util.List;
 import java.util.UUID;
 
 @Slf4j
 @RestController
-@RequestMapping(path = "api/users")
+@RequiredArgsConstructor
+@RequestMapping("/api/users")
 public class UserController {
+
     private final UserService userService;
 
-    public UserController(UserService userService) {
-        this.userService = userService;
-    }
-
-    // ----------- COMPANY-SERVICE -----------
-    // Получение пользователей конкретной компании
-    @GetMapping(path = "one/company/{company_id}")
-    public UserResponseDTO getUsers(@PathVariable UUID company_id) {
-        log.info("Запрошены пользователи компании с ID: {}", company_id);
-        return userService.getUsersOneCompany(company_id);
-    }
-
-    // Удаление всех пользователей конкретной компании
-    @DeleteMapping(path = "delete/users/{company_id}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteUsers(@PathVariable UUID company_id) {
-        log.info("Удаление всех пользователей компании с ID: {}", company_id);
-        userService.deleteUsersByCompanyId(company_id);
-    }
-
-
-    // Получение всех пользователей
-    @GetMapping
+    // 3.1 Получить всех пользователей
+    @GetMapping("/all")
     public List<UserDTO> getAllUsers() {
-        log.info("Запрошены все пользователи для Company-service");
+        log.info("GET /api/users/all — получение всех пользователей");
         return userService.getAllUsers();
     }
 
-    // ----------- USER-SERVICE -----------
-    // Удаление пользователя
-    @DeleteMapping(path = "{id}")
+    // 3.2 Получить одного пользователя
+    @GetMapping("/{id}")
+    public UserDTO getUserById(@PathVariable UUID id) {
+        log.info("GET /api/users/{} — получение пользователя по ID", id);
+        return userService.getUserById(id);
+    }
+
+    // 3.3 Создать пользователя
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    public UserDTO createUser(@RequestBody @Valid UserCreateDTO dto) {
+        log.info("POST /api/users — создание пользователя {}", dto.getEmail());
+        return userService.createUser(dto);
+    }
+
+    // 3.4 Обновить пользователя
+    @PutMapping("/{id}")
+    public UserDTO updateUser(@PathVariable UUID id, @RequestBody @Valid UserUpdateDTO dto) {
+        log.info("PUT /api/users/{} — обновление пользователя", id);
+        return userService.updateUser(id, dto);
+    }
+
+    // 3.5 Удалить пользователя
+    @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteUser(@PathVariable UUID id) {
-        log.info("Удаление пользователя с ID: {}", id);
+        log.info("DELETE /api/users/{} — удаление пользователя", id);
         userService.deleteUserById(id);
     }
 
-    // Обновление пользователя
-    @PutMapping(path = "{id}")
-    public UserDTO updateUser(
-            @PathVariable UUID id,
-            @RequestBody @Valid UserUpdateDTO userUpdateDTO) {
-        log.info("Обновление пользователя с ID: {}", id);
-        return userService.updateUser(id, userUpdateDTO);
+    // Удалить companyId из списка у всех пользователей
+    @DeleteMapping("/company/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteCompanyId(@PathVariable UUID id) {
+        log.info("DELETE /api/users/company/{} — удаление компании из списка у пользователей", id);
+        userService.deleteCompanyId(id);
     }
-
-    // Создание нового пользователя
-    @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
-    public UserDTO createUser(@RequestBody @Valid UserCreateDTO userCreateDTO) {
-        log.info("Создание нового пользователя: {} {}", userCreateDTO.getFirst_name(), userCreateDTO.getLast_name());
-        return userService.createUser(userCreateDTO);
-    }
-
-    // Получение всех пользователей с информацией о компании
-    @GetMapping(path = "all")
-    public Page<UserWithCompanyDTO> getAllUsersAndCompany(Pageable pageable) {
-        log.info("Получение всех пользователями и компаний с пагинацией: {}", pageable);
-        return userService.getAllUsersAndCompany(pageable);
-    }
-
-    // Получение одного пользователя с информацией о компании
-    @GetMapping(path = "one/{user_id}")
-    public UserAndCompanyDTO getUserAndCompany(@PathVariable UUID user_id) {
-        log.info("Запрошен пользователь с ID: {} и его компания", user_id);
-        return userService.getUserAndCompany(user_id);
-    }
-    //------------------------
-
-
 }

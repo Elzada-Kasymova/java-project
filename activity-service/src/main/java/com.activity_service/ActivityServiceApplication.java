@@ -6,6 +6,9 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication
 public class ActivityServiceApplication {
 
+	@SpringBootApplication
+	@EnableFeignClients
+	@EnableDiscoveryClient
 	public static void main(String[] args) {
 		SpringApplication.run(ActivityServiceApplication.class, args);
 	}

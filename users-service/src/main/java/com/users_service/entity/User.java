@@ -4,41 +4,55 @@ import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
-@Setter
-@Getter
 @Entity
-@Table(name = "users", schema = "public")
+@Getter
+@Setter
 public class User {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.AUTO)
+    @GeneratedValue
     private UUID id;
 
-    @Column(nullable = false)
-    private String first_name;
+    @Column(length = 100, nullable = false)
+    private String firstName;
 
-    @Column(nullable = false)
-    private String last_name;
+    @Column(length = 100, nullable = false)
+    private String lastName;
 
-    private String phone_number;
+    @Column(length = 255, nullable = false, unique = true)
+    private String email;
 
-    @Column(nullable = false)
-    private UUID company_id;
+    @ElementCollection
+    @CollectionTable(name = "user_companies", joinColumns = @JoinColumn(name = "user_id"))
+    @Column(name = "company_id")
+    private List<UUID> companyIds = new ArrayList<>();
 
+    @Column(nullable = false, updatable = false)
+    private Instant createdAt = Instant.now();
 
-    public User() {
+    public User(UUID id, String firstName, String lastName, String email, List<UUID> companyIds, Instant createdAt) {
+        this.id = id;
+        this.firstName = firstName;
+        this.lastName = lastName;
+        this.email = email;
+        this.companyIds = companyIds;
+        this.createdAt = createdAt;
     }
 
     @Override
     public String toString() {
         return "User{" +
                 "id=" + id +
-                ", first_name='" + first_name + '\'' +
-                ", last_name='" + last_name + '\'' +
-                ", phone_number='" + phone_number + '\'' +
-                ", company_id=" + company_id +
+                ", firstName='" + firstName + '\'' +
+                ", lastName='" + lastName + '\'' +
+                ", email='" + email + '\'' +
+                ", companyIds=" + companyIds +
+                ", createdAt=" + createdAt +
                 '}';
     }
 }

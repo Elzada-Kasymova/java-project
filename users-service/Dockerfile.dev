@@ -1,0 +1,13 @@
+FROM openjdk:17-jdk-slim
+LABEL authors="kasymovaelzada"
+VOLUME /tmp
+
+ARG JAR_FILE=target/*.jar
+COPY ${JAR_FILE} app.jar
+ENTRYPOINT ["java", "-jar", "/app.jar"]
+
+FROM maven:3.9.4-eclipse-temurin-17 AS dev
+WORKDIR /app
+COPY pom.xml .
+RUN mvn dependency:go-offline
+CMD ["mvn", "spring-boot:run"]
