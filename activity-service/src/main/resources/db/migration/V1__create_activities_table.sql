@@ -1,14 +1,24 @@
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
-CREATE TABLE activities (
-                            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                            type VARCHAR(20) NOT NULL,
-                            title VARCHAR(150) NOT NULL,
-                            description VARCHAR(500),
-                            user_id UUID,
-                            company_id UUID,
-                            deal_id UUID,
-                            status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
-                            due_date TIMESTAMP,
-                            created_at TIMESTAMP NOT NULL DEFAULT now()
-);
+CREATE TYPE activity_type AS ENUM ('TASK', 'CALL', 'MEETING');
+CREATE TYPE activity_status AS ENUM ('PLANNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELED');
+
+CREATE TABLE IF NOT EXISTS activities (
+                                          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    title VARCHAR(512) NOT NULL,
+    description TEXT,
+    type activity_type NOT NULL,
+    status activity_status NOT NULL,
+    user_id UUID,
+    deal_id UUID,
+    company_id UUID,
+    scheduled_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    completed_at TIMESTAMP WITH TIME ZONE
+                             );
+
+CREATE INDEX IF NOT EXISTS idx_activities_user_id ON activities(user_id);
+CREATE INDEX IF NOT EXISTS idx_activities_deal_id ON activities(deal_id);
+CREATE INDEX IF NOT EXISTS idx_activities_company_id ON activities(company_id);
+

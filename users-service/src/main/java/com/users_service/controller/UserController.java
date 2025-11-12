@@ -8,6 +8,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,6 +23,7 @@ public class UserController {
     private final UserService userService;
 
     // 3.1 Получить всех пользователей
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/all")
     public List<UserDTO> getAllUsers() {
         log.info("GET /api/users/all — получение всех пользователей");
@@ -29,6 +31,7 @@ public class UserController {
     }
 
     // 3.2 Получить одного пользователя
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     @GetMapping("/{id}")
     public UserDTO getUserById(@PathVariable UUID id) {
         log.info("GET /api/users/{} — получение пользователя по ID", id);
@@ -44,6 +47,7 @@ public class UserController {
     }
 
     // 3.4 Обновить пользователя
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     @PutMapping("/{id}")
     public UserDTO updateUser(@PathVariable UUID id, @RequestBody @Valid UserUpdateDTO dto) {
         log.info("PUT /api/users/{} — обновление пользователя", id);
@@ -51,6 +55,7 @@ public class UserController {
     }
 
     // 3.5 Удалить пользователя
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteUser(@PathVariable UUID id) {
@@ -59,6 +64,7 @@ public class UserController {
     }
 
     // Удалить companyId из списка у всех пользователей
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     @DeleteMapping("/company/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteCompanyId(@PathVariable UUID id) {

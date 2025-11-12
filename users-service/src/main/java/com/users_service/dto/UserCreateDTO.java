@@ -11,15 +11,21 @@ import java.util.UUID;
 @Setter
 public class UserCreateDTO {
 
+    @NotBlank
+    private String username;
+
+    @Email(message = "Email must be valid")
+    @NotBlank(message = "Email is required")
+    private String email;
+
+    @NotBlank
+    private String password;
+
     @NotBlank(message = "First name is required")
     private String firstName;
 
     @NotBlank(message = "Last name is required")
     private String lastName;
-
-    @Email(message = "Email must be valid")
-    @NotBlank(message = "Email is required")
-    private String email;
 
     private List<UUID> companyIds = new ArrayList<>();
 }

@@ -1,10 +1,15 @@
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
-CREATE TABLE notifications (
-                               id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-                               recipient_user_id UUID,
-                               type VARCHAR(20),
-                               message TEXT,
-                               status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
-                               created_at TIMESTAMP NOT NULL DEFAULT now()
-);
+CREATE TABLE IF NOT EXISTS notifications (
+                                             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    external_id VARCHAR(255) UNIQUE NOT NULL,
+    event_type VARCHAR(255),
+    template_name VARCHAR(255),
+    payload TEXT,
+    recipient_email VARCHAR(255),
+    status VARCHAR(50),
+    error TEXT,
+    attempts INT DEFAULT 0,
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT NOW(),
+    sent_at TIMESTAMP WITHOUT TIME ZONE
+    );

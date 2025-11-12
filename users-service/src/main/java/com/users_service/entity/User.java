@@ -12,10 +12,10 @@ import java.util.UUID;
 @Entity
 @Getter
 @Setter
+@Table(name = "users")
 public class User {
 
     @Id
-    @GeneratedValue
     private UUID id;
 
     @Column(length = 100, nullable = false)
@@ -30,7 +30,7 @@ public class User {
     @ElementCollection
     @CollectionTable(name = "user_companies", joinColumns = @JoinColumn(name = "user_id"))
     @Column(name = "company_id")
-    private List<UUID> companyIds = new ArrayList<>();
+    private List<UUID> companyIds;
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
@@ -42,6 +42,9 @@ public class User {
         this.email = email;
         this.companyIds = companyIds;
         this.createdAt = createdAt;
+    }
+
+    public User() {
     }
 
     @Override

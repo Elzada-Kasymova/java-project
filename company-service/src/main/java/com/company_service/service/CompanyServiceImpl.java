@@ -5,6 +5,7 @@ import com.company_service.dto.CompanyDTO;
 import com.company_service.dto.CompanyUpdateDTO;
 import com.company_service.entity.Company;
 import com.company_service.exception.CompanyNotFoundException;
+import com.company_service.kafka.CompanyEventPublisher;
 import com.company_service.mapper.CompanyMapper;
 import com.company_service.openfiegn.UserClient;
 import com.company_service.repository.CompanyRepository;
@@ -12,7 +13,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -22,11 +25,16 @@ public class CompanyServiceImpl implements CompanyService {
     private final CompanyRepository companyRepository;
     private final CompanyMapper companyMapper;
     private final UserClient userClient;
+    private final CompanyEventPublisher eventPublisher;
 
-    public CompanyServiceImpl(CompanyRepository companyRepository, CompanyMapper companyMapper, UserClient userClient) {
+    public CompanyServiceImpl(CompanyRepository companyRepository,
+                              CompanyMapper companyMapper,
+                              UserClient userClient,
+                              CompanyEventPublisher eventPublisher) {
         this.companyRepository = companyRepository;
         this.companyMapper = companyMapper;
         this.userClient = userClient;
+        this.eventPublisher = eventPublisher;
     }
 
     @Override
@@ -51,6 +59,15 @@ public class CompanyServiceImpl implements CompanyService {
         log.info("Creating company: {}", dto.getName());
         Company company = companyMapper.toEntity(dto);
         company = companyRepository.save(company);
+
+        // Публикация события
+        Map<String, Object> payload = Map.of(
+                "id", company.getId().toString(),
+                "name", company.getName(),
+                "address", company.getAddress()
+        );
+        eventPublisher.publish("CompanyCreated", company.getId().toString(), payload);
+
         return companyMapper.toDto(company);
     }
 
@@ -62,6 +79,15 @@ public class CompanyServiceImpl implements CompanyService {
                 .orElseThrow(() -> new CompanyNotFoundException("Company not found: " + id));
         companyMapper.updateEntity(company, dto);
         company = companyRepository.save(company);
+
+        // Публикация события
+        Map<String, Object> payload = Map.of(
+                "id", company.getId().toString(),
+                "name", company.getName(),
+                "address", company.getAddress()
+        );
+        eventPublisher.publish("CompanyUpdated", company.getId().toString(), payload);
+
         return companyMapper.toDto(company);
     }
 
@@ -71,7 +97,15 @@ public class CompanyServiceImpl implements CompanyService {
         log.info("Deleting company {}", id);
         Company company = companyRepository.findById(id)
                 .orElseThrow(() -> new CompanyNotFoundException("Company not found: " + id));
+        userClient.deleteCompanyId(id);
         companyRepository.delete(company);
+
+        // Публикация события
+        Map<String, Object> payload = Map.of(
+                "id", company.getId().toString(),
+                "deletedAt", Instant.now().toString()
+        );
+        eventPublisher.publish("CompanyDeleted", company.getId().toString(), payload);
     }
 
     @Override

@@ -6,6 +6,8 @@ import com.users_service.dto.UserUpdateDTO;
 import com.users_service.entity.User;
 import com.users_service.exception.UserAlreadyExistsException;
 import com.users_service.exception.UserNotFoundException;
+import com.users_service.kafka.UserEventPublisher;
+import com.users_service.keycloak.KeycloakClient;
 import com.users_service.mapper.UserMapper;
 import com.users_service.openfeign.CompanyClient;
 import com.users_service.repository.UserRepository;
@@ -13,8 +15,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.UUID;
+import java.time.Instant;
+import java.util.*;
 
 @Slf4j
 @Service
@@ -23,11 +25,21 @@ public class UserServiceImpl implements UserService {
     private final UserRepository userRepository;
     private final UserMapper userMapper;
     private final CompanyClient companyClient;
+    private final KeycloakClient keycloakClient;
+    private final UserEventPublisher eventPublisher;
 
-    public UserServiceImpl(UserRepository userRepository, UserMapper userMapper, CompanyClient companyClient) {
+    public UserServiceImpl(
+            UserRepository userRepository,
+            UserMapper userMapper,
+            CompanyClient companyClient,
+            KeycloakClient keycloakClient,
+            UserEventPublisher eventPublisher
+    ) {
         this.userRepository = userRepository;
         this.userMapper = userMapper;
         this.companyClient = companyClient;
+        this.keycloakClient = keycloakClient;
+        this.eventPublisher = eventPublisher;
     }
 
     @Override
@@ -44,16 +56,34 @@ public class UserServiceImpl implements UserService {
             throw new UserAlreadyExistsException("User with email already exists");
         });
 
+        // Проверяем компании
         if (dto.getCompanyIds() != null && !dto.getCompanyIds().isEmpty()) {
             for (UUID companyId : dto.getCompanyIds()) {
                 companyClient.getCompanyById(companyId);
             }
         }
 
+        // Создаём пользователя в Keycloak
+        String keycloakUserId = keycloakClient.createUser(dto.getUsername(), dto.getPassword(), dto.getEmail());
+
+        // Сохраняем в БД
         User user = userMapper.toEntity(dto);
+        user.setId(UUID.fromString(keycloakUserId));
         userRepository.save(user);
-        log.info("User created with id {}", user.getId());
-        return userMapper.toDto(user);
+
+        UserDTO userDTO = userMapper.toDto(user);
+
+        // 📤 Публикуем событие в Kafka
+        Map<String, Object> payload = Map.of(
+                "id", user.getId().toString(),
+                "firstName", user.getFirstName(),
+                "lastName", user.getLastName(),
+                "email", user.getEmail(),
+                "companyIds", user.getCompanyIds()
+        );
+        eventPublisher.publishUserCreated(payload);
+
+        return userDTO;
     }
 
     @Override
@@ -79,6 +109,13 @@ public class UserServiceImpl implements UserService {
 
         userRepository.delete(user);
         log.info("User deleted with id {}", id);
+
+        // 📤 Публикуем событие удаления
+        Map<String, Object> payload = Map.of(
+                "id", id.toString(),
+                "deletedAt", Instant.now().toString()
+        );
+        eventPublisher.publishUserDeleted(payload);
     }
 
     @Override
@@ -91,20 +128,29 @@ public class UserServiceImpl implements UserService {
         if (dto.getLast_name() != null) user.setLastName(dto.getLast_name());
         if (dto.getEmail() != null) user.setEmail(dto.getEmail());
 
-        // Обновление списка компаний
-        if (dto.getCompanyIds() != null) { // null означает "не обновляем"
+        // Проверяем и обновляем компании
+        if (dto.getCompanyIds() != null) {
             for (UUID companyId : dto.getCompanyIds()) {
                 companyClient.getCompanyById(companyId);
             }
-            user.setCompanyIds(dto.getCompanyIds()); // даже пустой список безопасно
+            user.setCompanyIds(dto.getCompanyIds());
         }
 
         userRepository.save(user);
         log.info("User updated: {}", user);
+
+        // 📤 Публикуем событие обновления
+        Map<String, Object> payload = Map.of(
+                "id", id.toString(),
+                "firstName", user.getFirstName(),
+                "lastName", user.getLastName(),
+                "email", user.getEmail(),
+                "companyIds", user.getCompanyIds()
+        );
+        eventPublisher.publishUserUpdated(payload);
+
         return userMapper.toDto(user);
     }
-
-
 
     public void deleteCompanyId(UUID id) {
         userRepository.findAll().forEach(user -> {
