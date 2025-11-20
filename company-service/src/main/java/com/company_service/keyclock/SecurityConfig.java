@@ -46,9 +46,7 @@ public class SecurityConfig {
         return http.build();
     }
 
-    /**
-     * Конвертер JWT → GrantedAuthorities (используем только realm_access.roles)
-     */
+
     private JwtAuthenticationConverter jwtAuthenticationConverter() {
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
 
@@ -61,7 +59,6 @@ public class SecurityConfig {
 
             List<String> roles = (List<String>) realmAccess.get("roles");
 
-            // нормализуем роли (гарантируем префикс ROLE_)
             return roles.stream()
                     .filter(Objects::nonNull)
                     .map(String::trim)
@@ -79,7 +76,6 @@ public class SecurityConfig {
         String jwkSetUri = "http://keycloak:8080/realms/crm-realm/protocol/openid-connect/certs";
         NimbusJwtDecoder jwtDecoder = NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build();
 
-        // Разрешаем несколько issuer
         OAuth2TokenValidator<Jwt> issuerValidator = token -> {
             String iss = token.getIssuer().toString();
             if ("http://keycloak:8080/realms/crm-realm".equals(iss) ||

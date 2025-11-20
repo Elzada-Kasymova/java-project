@@ -27,7 +27,7 @@ public class Notification {
     @Column(columnDefinition = "text")
     private String payload;
 
-    private String recipientEmail; // <- именно так
+    private String recipientEmail;
 
     private String status;
 

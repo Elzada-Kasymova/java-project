@@ -15,8 +15,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -56,32 +56,30 @@ public class UserServiceImpl implements UserService {
             throw new UserAlreadyExistsException("User with email already exists");
         });
 
-        // Проверяем компании
         if (dto.getCompanyIds() != null && !dto.getCompanyIds().isEmpty()) {
             for (UUID companyId : dto.getCompanyIds()) {
-                companyClient.getCompanyById(companyId);
+                if (!companyClient.companyExists(companyId)) {
+                    throw new RuntimeException("Company not found: " + companyId);
+                }
             }
         }
 
-        // Создаём пользователя в Keycloak
-        String keycloakUserId = keycloakClient.createUser(dto.getUsername(), dto.getPassword(), dto.getEmail());
+        String keycloakUserId = keycloakClient.createUser(
+                dto.getUsername(),
+                dto.getPassword(),
+                dto.getEmail(),
+                dto.getFirstName(),
+                dto.getLastName()
+        );
 
-        // Сохраняем в БД
         User user = userMapper.toEntity(dto);
         user.setId(UUID.fromString(keycloakUserId));
         userRepository.save(user);
 
         UserDTO userDTO = userMapper.toDto(user);
 
-        // 📤 Публикуем событие в Kafka
-        Map<String, Object> payload = Map.of(
-                "id", user.getId().toString(),
-                "firstName", user.getFirstName(),
-                "lastName", user.getLastName(),
-                "email", user.getEmail(),
-                "companyIds", user.getCompanyIds()
-        );
-        eventPublisher.publishUserCreated(payload);
+
+        eventPublisher.publishUserCreated(user.getId().toString());
 
         return userDTO;
     }
@@ -91,6 +89,11 @@ public class UserServiceImpl implements UserService {
         return userRepository.findById(id)
                 .map(userMapper::toDto)
                 .orElseThrow(() -> new UserNotFoundException("User not found with id: " + id));
+    }
+
+    @Override
+    public boolean existsById(UUID id) {
+        return userRepository.existsById(id);
     }
 
     @Transactional
@@ -107,16 +110,18 @@ public class UserServiceImpl implements UserService {
             }
         }
 
+        try {
+            keycloakClient.deleteUser(id.toString());
+        } catch (Exception e) {
+            log.error("Failed to delete user {} from Keycloak: {}", id, e.getMessage());
+        }
+
         userRepository.delete(user);
         log.info("User deleted with id {}", id);
 
-        // 📤 Публикуем событие удаления
-        Map<String, Object> payload = Map.of(
-                "id", id.toString(),
-                "deletedAt", Instant.now().toString()
-        );
-        eventPublisher.publishUserDeleted(payload);
+        eventPublisher.publishUserDeleted(id.toString());
     }
+
 
     @Override
     @Transactional
@@ -128,28 +133,32 @@ public class UserServiceImpl implements UserService {
         if (dto.getLast_name() != null) user.setLastName(dto.getLast_name());
         if (dto.getEmail() != null) user.setEmail(dto.getEmail());
 
-        // Проверяем и обновляем компании
+        Set<UUID> oldSet = listToSet(user.getCompanyIds());
+        Set<UUID> newSet = listToSet(dto.getCompanyIds());
+
         if (dto.getCompanyIds() != null) {
             for (UUID companyId : dto.getCompanyIds()) {
-                companyClient.getCompanyById(companyId);
+                if (!companyClient.companyExists(companyId)) {
+                    throw new RuntimeException("Company not found: " + companyId);
+                }
             }
-            user.setCompanyIds(dto.getCompanyIds());
+            user.setCompanyIds(new ArrayList<>(dto.getCompanyIds()));
         }
 
         userRepository.save(user);
         log.info("User updated: {}", user);
 
-        // 📤 Публикуем событие обновления
-        Map<String, Object> payload = Map.of(
-                "id", id.toString(),
-                "firstName", user.getFirstName(),
-                "lastName", user.getLastName(),
-                "email", user.getEmail(),
-                "companyIds", user.getCompanyIds()
-        );
-        eventPublisher.publishUserUpdated(payload);
+        if (!Objects.equals(oldSet, newSet)) {
+            eventPublisher.publishUserUpdated(id.toString(), dto.getCompanyIds());
+        }
 
         return userMapper.toDto(user);
+    }
+    private Set<UUID> listToSet(List<UUID> list) {
+        if (list == null) return Collections.emptySet();
+        return list.stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
     }
 
     public void deleteCompanyId(UUID id) {

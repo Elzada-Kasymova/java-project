@@ -18,7 +18,4 @@ CREATE TABLE IF NOT EXISTS activities (
     completed_at TIMESTAMP WITH TIME ZONE
                              );
 
-CREATE INDEX IF NOT EXISTS idx_activities_user_id ON activities(user_id);
-CREATE INDEX IF NOT EXISTS idx_activities_deal_id ON activities(deal_id);
-CREATE INDEX IF NOT EXISTS idx_activities_company_id ON activities(company_id);
 

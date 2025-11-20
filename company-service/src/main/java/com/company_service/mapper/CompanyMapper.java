@@ -25,8 +25,4 @@ public interface CompanyMapper {
     default Instant map(Timestamp timestamp) {
         return timestamp != null ? timestamp.toInstant() : null;
     }
-
-    default Timestamp map(Instant instant) {
-        return instant != null ? Timestamp.from(instant) : null;
-    }
 }

@@ -10,6 +10,7 @@ import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -37,9 +38,7 @@ public class KeycloakClient {
         return parts.length > 1 ? parts[1] : "crm-realm";
     }
 
-    /**
-     * Получение служебного токена от Keycloak (client_credentials)
-     */
+
     public String getServiceAccessToken() {
         String body = "grant_type=client_credentials"
                 + "&client_id=" + clientId
@@ -62,9 +61,7 @@ public class KeycloakClient {
         return response.getBody().get("access_token").asText();
     }
 
-    /**
-     * Проверка существования пользователя по email
-     */
+
     public boolean userExistsByEmail(String email, String token) {
         String realm = getRealmFromIssuer();
         String url = String.format("%s/admin/realms/%s/users?email=%s",
@@ -83,14 +80,11 @@ public class KeycloakClient {
         }
     }
 
-    /**
-     * Создание нового пользователя (если не существует)
-     */
-    public String createUser(String username, String password, String email) {
+
+    public String createUser(String username, String password, String email, String firstName, String lastName) {
         String token = getServiceAccessToken();
         String realm = getRealmFromIssuer();
 
-        // Проверка, существует ли пользователь
         if (userExistsByEmail(email, token)) {
             log.warn("User with email {} already exists in Keycloak", email);
             throw new ResponseStatusException(
@@ -102,21 +96,37 @@ public class KeycloakClient {
         String url = String.format("%s/admin/realms/%s/users",
                 issuerUri.replace("/realms/" + realm, ""), realm);
 
-        Map<String, Object> user = Map.of(
-                "username", username,
-                "email", email,
-                "enabled", true,
-                "credentials", List.of(Map.of(
-                        "type", "password",
-                        "value", password,
-                        "temporary", false))
-        );
+        Map<String, Object> user = new HashMap<>();
+        user.put("username", username);
+        user.put("email", email);
+        user.put("enabled", true);
+
+        if (firstName != null && !firstName.isBlank()) {
+            user.put("firstName", firstName);
+        }
+        if (lastName != null && !lastName.isBlank()) {
+            user.put("lastName", lastName);
+        }
+
+        List<Map<String, Object>> credentials = List.of(Map.of(
+                "type", "password",
+                "value", password,
+                "temporary", false
+        ));
+        user.put("credentials", credentials);
+
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setBearerAuth(token);
 
-        ResponseEntity<Void> response = restTemplate.postForEntity(url, new HttpEntity<>(user, headers), Void.class);
+        ResponseEntity<Void> response;
+        try {
+            response = restTemplate.postForEntity(url, new HttpEntity<>(user, headers), Void.class);
+        } catch (HttpClientErrorException e) {
+            log.error("Failed to create user in Keycloak: {} - {}", e.getStatusCode(), e.getResponseBodyAsString());
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Failed to create user in Keycloak");
+        }
 
         if (response.getStatusCode() != HttpStatus.CREATED) {
             throw new ResponseStatusException(
@@ -131,4 +141,27 @@ public class KeycloakClient {
         log.info("Created new user in Keycloak: {}", location);
         return location.substring(location.lastIndexOf("/") + 1);
     }
+
+    public void deleteUser(String keycloakUserId) {
+        String token = getServiceAccessToken();
+        String realm = getRealmFromIssuer();
+
+        String url = String.format("%s/admin/realms/%s/users/%s",
+                issuerUri.replace("/realms/" + realm, ""), realm, keycloakUserId);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setBearerAuth(token);
+        HttpEntity<Void> entity = new HttpEntity<>(headers);
+
+        try {
+            restTemplate.exchange(url, HttpMethod.DELETE, entity, Void.class);
+            log.info("Deleted user {} from Keycloak", keycloakUserId);
+        } catch (HttpClientErrorException.NotFound e) {
+            log.warn("User {} not found in Keycloak", keycloakUserId);
+        } catch (HttpClientErrorException e) {
+            log.error("Error deleting user {} from Keycloak: {}", keycloakUserId, e.getMessage());
+            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Error deleting user from Keycloak");
+        }
+    }
+
 }

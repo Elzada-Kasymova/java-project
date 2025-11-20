@@ -14,7 +14,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/v1/deals")
+@RequestMapping("/api/deals")
 public class DealController {
 
     private final DealService service;
@@ -23,23 +23,23 @@ public class DealController {
         this.service = service;
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/all")
+    public ResponseEntity<List<DealSummaryDTO>> getAllDeals() {
+        return ResponseEntity.ok(service.getAll());
+    }
+
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
+    @GetMapping("/{id}")
+    public ResponseEntity<DealResponseDTO> getDeal(@PathVariable UUID id) {
+        return ResponseEntity.ok(service.getById(id));
+    }
+
     @PreAuthorize("hasAnyRole('USER','ADMIN')")
     @PostMapping
     public ResponseEntity<DealResponseDTO> createDeal(@Valid @RequestBody DealCreateDTO dto) {
         DealResponseDTO res = service.create(dto);
         return ResponseEntity.status(201).body(res);
-    }
-
-    @PreAuthorize("hasRole('ADMIN')")
-    @GetMapping
-    public ResponseEntity<List<DealSummaryDTO>> getAllDeals() {
-        return ResponseEntity.ok(service.getAll());
-    }
-
-    @PreAuthorize("hasAnyRole('USER','ADMIN')")
-    @GetMapping("/{id}")
-    public ResponseEntity<DealResponseDTO> getDeal(@PathVariable UUID id) {
-        return ResponseEntity.ok(service.getById(id));
     }
 
     @PreAuthorize("hasAnyRole('USER','ADMIN')")
@@ -54,7 +54,7 @@ public class DealController {
         return ResponseEntity.ok(service.changeStage(id, req));
     }
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteDeal(@PathVariable UUID id) {
         service.delete(id);
@@ -71,5 +71,11 @@ public class DealController {
             @RequestParam Optional<String> dateTo
     ) {
         return ResponseEntity.ok(service.search(stage, companyId, userId, dateFrom, dateTo));
+    }
+
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
+    @GetMapping("/exists/{id}")
+    public boolean dealExists(@PathVariable UUID id) {
+        return service.existsById(id);
     }
 }

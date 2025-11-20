@@ -10,18 +10,13 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface DealService {
+
     DealResponseDTO create(DealCreateDTO dto);
-
     List<DealSummaryDTO> getAll();
-
     DealResponseDTO getById(UUID id);
-
     DealResponseDTO update(UUID id, DealUpdateDTO dto);
-
     DealResponseDTO changeStage(UUID id, DealPatchStageDTO req);
-
     void delete(UUID id);
-
     List<DealSummaryDTO> search(
             Optional<DealStage> stage,
             Optional<UUID> companyId,
@@ -29,4 +24,5 @@ public interface DealService {
             Optional<String> dateFrom,
             Optional<String> dateTo
     );
+    boolean existsById(UUID id);
 }

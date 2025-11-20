@@ -65,4 +65,11 @@ public class CompanyController {
         log.info("Clearing userId for company {}", companyId);
         companyService.clearUserId(companyId);
     }
+
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
+    @GetMapping("/exists/{id}")
+    public boolean companyExists(@PathVariable UUID id) {
+        log.info("Checking if company {} exists", id);
+        return companyService.existsById(id);
+    }
 }

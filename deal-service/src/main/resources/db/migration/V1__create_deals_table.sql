@@ -15,7 +15,3 @@ CREATE TABLE IF NOT EXISTS deals (
                                      is_deleted boolean NOT NULL DEFAULT false
 );
 
-CREATE INDEX IF NOT EXISTS idx_deals_company_id ON deals(company_id);
-CREATE INDEX IF NOT EXISTS idx_deals_user_id ON deals(user_id);
-CREATE INDEX IF NOT EXISTS idx_deals_stage ON deals(stage);
-CREATE INDEX IF NOT EXISTS idx_deals_pipeline_id ON deals(pipeline_id);

@@ -48,9 +48,7 @@ public class SecurityConfig {
         return http.build();
     }
 
-    /**
-     * Конвертер JWT → GrantedAuthorities (используем только realm_access.roles)
-     */
+
     private JwtAuthenticationConverter jwtAuthenticationConverter() {
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
 
@@ -63,7 +61,6 @@ public class SecurityConfig {
 
             List<String> roles = (List<String>) realmAccess.get("roles");
 
-            // нормализуем роли (гарантируем префикс ROLE_)
             return roles.stream()
                     .filter(Objects::nonNull)
                     .map(String::trim)

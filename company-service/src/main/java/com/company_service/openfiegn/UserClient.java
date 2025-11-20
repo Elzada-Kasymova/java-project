@@ -14,9 +14,9 @@ import java.util.UUID;
 @FeignClient(name = "USERS-SERVICE", path = "/api/users")
 public interface UserClient {
 
-    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
-    @GetMapping("/{id}")
-    UserDTO getUserById(@PathVariable("id") UUID userId);
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
+    @GetMapping("/exists/{id}")
+    boolean userExists(@PathVariable UUID id);
 
     @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
     @DeleteMapping("/company/{id}")

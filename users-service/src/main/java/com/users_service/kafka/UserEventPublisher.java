@@ -1,62 +1,77 @@
 package com.users_service.kafka;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.kafka.clients.producer.ProducerRecord;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
-import java.time.Instant;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class UserEventPublisher {
 
-    private static final String TOPIC = "crm-events";
-
     private final KafkaTemplate<String, String> kafkaTemplate;
-    private final ObjectMapper objectMapper;
 
-    public UserEventPublisher(KafkaTemplate<String, String> kafkaTemplate, ObjectMapper objectMapper) {
-        this.kafkaTemplate = kafkaTemplate;
-        this.objectMapper = objectMapper;
-    }
+    private static final String TOPIC_CREATED = "user-created";
+    private static final String TOPIC_UPDATED = "user-updated";
+    private static final String TOPIC_DELETED = "user-deleted";
 
-    public void publishUserCreated(Map<String, Object> payload) {
-        publishEvent("UserCreated", payload, (String) payload.get("id"));
-    }
-
-    public void publishUserUpdated(Map<String, Object> payload) {
-        publishEvent("UserUpdated", payload, (String) payload.get("id"));
-    }
-
-    public void publishUserDeleted(Map<String, Object> payload) {
-        publishEvent("UserDeleted", payload, (String) payload.get("id"));
-    }
-
-    private void publishEvent(String eventType, Map<String, Object> payload, String originAggregateId) {
+    public void publishUserCreated(String userId) {
         try {
-            Map<String, Object> envelope = Map.of(
-                    "eventId", UUID.randomUUID().toString(),
-                    "eventType", eventType,
-                    "eventVersion", 1,
-                    "eventTime", Instant.now().toString(),
-                    "sourceService", "users-service",
-                    "originAggregateId", originAggregateId,
-                    "correlationId", null,
-                    "causationId", null,
-                    "payload", payload
-            );
-
-            String value = objectMapper.writeValueAsString(envelope);
-            ProducerRecord<String, String> record = new ProducerRecord<>(TOPIC, originAggregateId, value);
-            kafkaTemplate.send(record);
-
-            log.info("✅ Published {} event: {}", eventType, value);
+            kafkaTemplate.send(TOPIC_CREATED, userId, userId);
+            log.info("Published user-created key={}, value={}", userId, userId);
         } catch (Exception e) {
-            log.error("❌ Failed to publish {} event: {}", eventType, e.getMessage(), e);
+            log.error("Failed to publish user-created for {}: {}", userId, e.getMessage(), e);
+        }
+    }
+
+    public void publishUserDeleted(String userId) {
+        try {
+            kafkaTemplate.send(TOPIC_DELETED, userId, userId);
+            log.info("Published user-deleted key={}, value={}", userId, userId);
+        } catch (Exception e) {
+            log.error("Failed to publish user-deleted for {}: {}", userId, e.getMessage(), e);
+        }
+    }
+
+    public void publishUserUpdated(String userId, List<UUID> companyIds) {
+        try {
+            String payload;
+
+            if (companyIds == null || companyIds.isEmpty()) {
+                payload = "{\"userId\":\"" + userId + "\"}";
+            } else {
+                List<String> companyIdsStr = companyIds.stream()
+                        .filter(Objects::nonNull)
+                        .map(UUID::toString)
+                        .toList();
+
+                if (companyIdsStr.size() == 1) {
+                    payload = String.format(
+                            "{\"userId\":\"%s\",\"companyId\":\"%s\"}",
+                            userId, companyIdsStr.get(0)
+                    );
+                } else {
+                    String idsJsonArray = companyIdsStr.stream()
+                            .map(id -> "\"" + id + "\"")
+                            .collect(Collectors.joining(","));
+
+                    payload = String.format(
+                            "{\"userId\":\"%s\",\"companyIds\":[%s]}",
+                            userId,
+                            idsJsonArray
+                    );
+                }
+            }
+
+            kafkaTemplate.send(TOPIC_UPDATED, userId, payload);
+            log.info("Published user-updated key={}, value={}", userId, payload);
+
+        } catch (Exception e) {
+            log.error("Failed to publish user-updated for {}: {}", userId, e.getMessage(), e);
         }
     }
 }

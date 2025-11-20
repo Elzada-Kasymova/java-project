@@ -1,16 +1,13 @@
 package com.deal_service.kafka;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
-import lombok.*;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
-import java.time.Instant;
-import java.util.Map;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Component
@@ -18,32 +15,50 @@ import java.util.UUID;
 public class DealEventPublisher {
 
     private final KafkaTemplate<String, String> kafkaTemplate;
-    private final ObjectMapper objectMapper;
+    private final DealEventPayloadBuilder payloadBuilder;
 
-    @Value("${app.kafka.topic:crm-events}")
-    private String topic;
+    private static final String TOPIC_CREATE = "deal-create";
+    private static final String TOPIC_UPDATE = "deal-update";
+    private static final String TOPIC_STAGE_CHANGE = "deal-stage-change";
+    private static final String TOPIC_DELETE = "deal-delete";
 
-    public void publish(String eventType, UUID originAggregateId, Map<String, Object> payload) {
+    public void publishDealCreated(UUID dealId) {
         try {
-            Map<String, Object> envelope = Map.of(
-                    "eventId", UUID.randomUUID().toString(),
-                    "eventType", eventType,
-                    "eventVersion", 1,
-                    "eventTime", Instant.now().toString(),
-                    "sourceService", "deal-service",
-                    "originAggregateId", originAggregateId != null ? originAggregateId.toString() : null,
-                    "correlationId", null,
-                    "causationId", null,
-                    "payload", payload
-            );
-
-            String jsonMessage = objectMapper.writeValueAsString(envelope);
-            String key = originAggregateId != null ? originAggregateId.toString() : UUID.randomUUID().toString();
-
-            kafkaTemplate.send(topic, key, jsonMessage);
-            log.info("✅ Kafka event sent: {} | Key: {} | Topic: {}", eventType, key, topic);
+            String payload = payloadBuilder.buildDealCreatedPayload(dealId);
+            kafkaTemplate.send(TOPIC_CREATE, dealId.toString(), payload);
+            log.info("Published deal-create key={}, value={}", dealId, payload);
         } catch (Exception e) {
-            log.error("❌ Error publishing Kafka event: {}", eventType, e);
+            log.error("Failed to publish deal-create for {}: {}", dealId, e.getMessage(), e);
+        }
+    }
+
+    public void publishDealDeleted(UUID dealId) {
+        try {
+            String payload = payloadBuilder.buildDealDeletedPayload(dealId);
+            kafkaTemplate.send(TOPIC_DELETE, dealId.toString(), payload);
+            log.info("Published deal-delete key={}, value={}", dealId, payload);
+        } catch (Exception e) {
+            log.error("Failed to publish deal-delete for {}: {}", dealId, e.getMessage(), e);
+        }
+    }
+
+    public void publishDealStageChange(UUID dealId, Enum<?> stage) {
+        try {
+            String payload = payloadBuilder.buildStageChangePayload(dealId, stage);
+            kafkaTemplate.send(TOPIC_STAGE_CHANGE, dealId.toString(), payload);
+            log.info("Published deal-stage-change key={}, value={}", dealId, payload);
+        } catch (Exception e) {
+            log.error("Failed to publish deal-stage-change for {}: {}", dealId, e.getMessage(), e);
+        }
+    }
+
+    public void publishDealUpdated(UUID dealId, UUID companyId, List<UUID> userIds) {
+        try {
+            String payload = payloadBuilder.buildDealUpdatedPayload(dealId, companyId, userIds);
+            kafkaTemplate.send(TOPIC_UPDATE, dealId.toString(), payload);
+            log.info("Published deal-update key={}, value={}", dealId, payload);
+        } catch (Exception e) {
+            log.error("Failed to publish deal-update for {}: {}", dealId, e.getMessage(), e);
         }
     }
 }

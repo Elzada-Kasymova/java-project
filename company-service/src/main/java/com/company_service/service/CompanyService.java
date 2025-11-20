@@ -10,14 +10,11 @@ import java.util.UUID;
 public interface CompanyService {
 
     List<CompanyDTO> getAllCompanies();
-
     CompanyDTO getCompanyById(UUID id);
-
     CompanyDTO createCompany(CompanyCreateDTO dto);
-
     CompanyDTO updateCompany(UUID id, CompanyUpdateDTO dto);
-
     void deleteCompany(UUID id);
-
     void clearUserId(UUID companyId);
+    boolean existsById(UUID id);
+
 }

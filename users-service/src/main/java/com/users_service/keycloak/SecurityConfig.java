@@ -1,5 +1,6 @@
 package com.users_service.keycloak;
 
+import org.springframework.http.HttpMethod;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -14,13 +15,9 @@ import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.jwt.*;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
-import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
 import org.springframework.security.web.SecurityFilterChain;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -29,42 +26,59 @@ import java.util.stream.Collectors;
 public class SecurityConfig {
 
     @Value("${spring.security.oauth2.resourceserver.jwt.issuer-uri}")
-    private String issuer;
+    private String issuerUri;
+
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/users").permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/users").permitAll()
+
+
+                        .requestMatchers("/internal/**").hasAuthority("ROLE_service.internal")
+
+                        .requestMatchers("/api/users/**").authenticated()
+
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
                 );
 
+
         return http.build();
     }
 
-    /**
-     * Конвертер JWT → GrantedAuthorities (используем только realm_access.roles)
-     */
+
     private JwtAuthenticationConverter jwtAuthenticationConverter() {
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
 
         converter.setJwtGrantedAuthoritiesConverter(jwt -> {
-            Map<String, Object> realmAccess = jwt.getClaimAsMap("realm_access");
+            Set<String> roles = new HashSet<>();
 
-            if (realmAccess == null || realmAccess.get("roles") == null) {
-                return Collections.emptyList();
+            Map<String, Object> realmAccess = jwt.getClaimAsMap("realm_access");
+            if (realmAccess != null && realmAccess.get("roles") instanceof List<?> realmRoles) {
+                realmRoles.forEach(r -> {
+                    if (r != null) roles.add(r.toString().trim());
+                });
             }
 
-            List<String> roles = (List<String>) realmAccess.get("roles");
+            Map<String, Object> resourceAccess = jwt.getClaimAsMap("resource_access");
+            if (resourceAccess != null) {
+                resourceAccess.values().forEach(obj -> {
+                    Map<?, ?> client = (Map<?, ?>) obj;
+                    Object rolesObj = client.get("roles");
+                    if (rolesObj instanceof List<?> clientRoles) {
+                        clientRoles.forEach(r -> {
+                            if (r != null) roles.add(r.toString().trim());
+                        });
+                    }
+                });
+            }
 
-            // нормализуем роли (гарантируем префикс ROLE_)
             return roles.stream()
-                    .filter(Objects::nonNull)
-                    .map(String::trim)
                     .map(role -> role.startsWith("ROLE_") ? role : "ROLE_" + role)
                     .map(SimpleGrantedAuthority::new)
                     .collect(Collectors.toList());
@@ -95,4 +109,5 @@ public class SecurityConfig {
         jwtDecoder.setJwtValidator(withDefault);
         return jwtDecoder;
     }
+
 }

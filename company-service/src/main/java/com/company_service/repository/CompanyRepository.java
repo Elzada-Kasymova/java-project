@@ -9,8 +9,4 @@ import java.util.UUID;
 
 public interface CompanyRepository extends JpaRepository<Company, UUID> {
 
-
-    @Query(value = "SELECT * FROM companies WHERE name = ?1 LIMIT 1", nativeQuery = true)
-    Optional<Company> findByName(String name);
-
 }

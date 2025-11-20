@@ -31,7 +31,7 @@ public class UserController {
     }
 
     // 3.2 Получить одного пользователя
-    @PreAuthorize("hasAnyRole('USER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('USER', 'ADMIN', 'SYSTEM')")
     @GetMapping("/{id}")
     public UserDTO getUserById(@PathVariable UUID id) {
         log.info("GET /api/users/{} — получение пользователя по ID", id);
@@ -71,4 +71,12 @@ public class UserController {
         log.info("DELETE /api/users/company/{} — удаление компании из списка у пользователей", id);
         userService.deleteCompanyId(id);
     }
+
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
+    @GetMapping("/exists/{id}")
+    public boolean userExists(@PathVariable UUID id) {
+        log.info("Checking if user {} exists", id);
+        return userService.existsById(id);
+    }
+
 }

@@ -5,6 +5,8 @@ import com.deal_service.dto.*;
 import com.deal_service.entity.Deal;
 import com.deal_service.kafka.DealEventPublisher;
 import com.deal_service.mapper.DealMapper;
+import com.deal_service.openfeign.CompanyClient;
+import com.deal_service.openfeign.UserClient;
 import com.deal_service.repository.DealRepository;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.ws.rs.NotFoundException;
@@ -22,34 +24,42 @@ public class DealServiceImpl implements DealService {
     private final DealRepository repository;
     private final DealMapper mapper;
     private final DealEventPublisher eventPublisher;
+    private final CompanyClient companyClient;
+    private final UserClient userClient;
 
     public DealServiceImpl(DealRepository repository,
                            DealMapper mapper,
-                           DealEventPublisher eventPublisher) {
+                           DealEventPublisher eventPublisher, CompanyClient companyClient, UserClient userClient) {
         this.repository = repository;
         this.mapper = mapper;
         this.eventPublisher = eventPublisher;
+        this.companyClient = companyClient;
+        this.userClient = userClient;
     }
 
     @Override
     @Transactional
     public DealResponseDTO create(DealCreateDTO dto) {
-        Deal toSave = mapper.toEntity(dto);
-        if (toSave.getStage() == null) toSave.setStage(DealStage.LEAD);
-        toSave.setCreatedAt(Instant.now());
-        Deal saved = repository.save(toSave);
 
-        Map<String, Object> payload = Map.of(
-                "id", saved.getId().toString(),
-                "stage", saved.getStage().name(),
-                "companyId", saved.getCompanyId() != null ? saved.getCompanyId().toString() : null,
-                "userId", saved.getUserId() != null ? saved.getUserId().toString() : null,
-                "amount", saved.getAmount()
-        );
+        if (dto.companyId() != null && !companyClient.companyExists(dto.companyId())) {
+            throw new NotFoundException("Company not found: " + dto.companyId());
+        }
 
-        eventPublisher.publish("DealCreated", saved.getId(), payload);
+        if (dto.userId() != null && !userClient.userExists(dto.userId())) {
+            throw new NotFoundException("User not found: " + dto.userId());
+        }
+
+        Deal deal = mapper.toEntity(dto);
+        if (deal.getStage() == null) deal.setStage(DealStage.LEAD);
+
+        deal.setCreatedAt(Instant.now());
+        Deal saved = repository.save(deal);
+
+        eventPublisher.publishDealCreated(saved.getId());
+
         return mapper.toDto(saved);
     }
+
 
     @Override
     public List<DealSummaryDTO> getAll() {
@@ -65,25 +75,55 @@ public class DealServiceImpl implements DealService {
     }
 
     @Override
+    public boolean existsById(UUID id) {
+        return repository.findByIdAndIsDeletedFalse(id).isPresent();
+    }
+
+
+    @Override
     @Transactional
     public DealResponseDTO update(UUID id, DealUpdateDTO dto) {
+
         Deal existing = repository.findByIdAndIsDeletedFalse(id)
                 .orElseThrow(() -> new NotFoundException("Deal not found: " + id));
 
+        UUID oldCompanyId = existing.getCompanyId();
+        UUID oldUserId = existing.getUserId();
+
+        if (dto.companyId() != null &&
+                !Objects.equals(dto.companyId(), oldCompanyId) &&
+                !companyClient.companyExists(dto.companyId())) {
+
+            throw new NotFoundException("Company not found: " + dto.companyId());
+        }
+
+        if (dto.userId() != null &&
+                !Objects.equals(dto.userId(), oldUserId) &&
+                !userClient.userExists(dto.userId())) {
+
+            throw new NotFoundException("User not found: " + dto.userId());
+        }
+
         mapper.updateFromDto(dto, existing);
         existing.setUpdatedAt(Instant.now());
-        if (dto.closedAt() != null) existing.setClosedAt(dto.closedAt());
+
+        if (dto.closedAt() != null) {
+            existing.setClosedAt(dto.closedAt());
+        }
+
         Deal saved = repository.save(existing);
 
-        Map<String, Object> payload = Map.of(
-                "id", saved.getId().toString(),
-                "stage", saved.getStage().name(),
-                "companyId", saved.getCompanyId() != null ? saved.getCompanyId().toString() : null,
-                "userId", saved.getUserId() != null ? saved.getUserId().toString() : null,
-                "amount", saved.getAmount()
-        );
+        boolean companyChanged = !Objects.equals(oldCompanyId, saved.getCompanyId());
+        boolean userChanged = !Objects.equals(oldUserId, saved.getUserId());
 
-        eventPublisher.publish("DealUpdated", saved.getId(), payload);
+        if (companyChanged || userChanged) {
+            eventPublisher.publishDealUpdated(
+                    saved.getId(),
+                    companyChanged ? saved.getCompanyId() : null,
+                    userChanged ? List.of(saved.getUserId()) : null
+            );
+        }
+
         return mapper.toDto(saved);
     }
 
@@ -92,30 +132,18 @@ public class DealServiceImpl implements DealService {
     public DealResponseDTO changeStage(UUID id, DealPatchStageDTO req) {
         Deal deal = repository.findByIdAndIsDeletedFalse(id)
                 .orElseThrow(() -> new NotFoundException("Deal not found: " + id));
-        DealStage old = deal.getStage();
+
 
         deal.setStage(req.stage());
         if (req.stage() == DealStage.WON || req.stage() == DealStage.LOST) {
-            deal.setClosedAt(req.closedAt() == null ? Instant.now() : req.closedAt());
+            deal.setClosedAt(req.closedAt() != null ? req.closedAt() : Instant.now());
         }
         deal.setUpdatedAt(Instant.now());
+
         Deal saved = repository.save(deal);
 
-        Map<String, Object> stagePayload = new HashMap<>();
-        stagePayload.put("id", saved.getId().toString());
-        stagePayload.put("oldStage", old != null ? old.name() : null);
-        stagePayload.put("newStage", saved.getStage() != null ? saved.getStage().name() : null);
-        stagePayload.put("companyId", saved.getCompanyId() != null ? saved.getCompanyId().toString() : null);
-        stagePayload.put("userId", saved.getUserId() != null ? saved.getUserId().toString() : null);
-        stagePayload.put("amount", saved.getAmount());
-        stagePayload.put("closedAt", saved.getClosedAt() != null ? saved.getClosedAt().toString() : null);
-
-        eventPublisher.publish("DealStageChanged", saved.getId(), stagePayload);
-
-        if (saved.getStage() == DealStage.WON) {
-            eventPublisher.publish("DealWon", saved.getId(), stagePayload);
-        } else if (saved.getStage() == DealStage.LOST) {
-            eventPublisher.publish("DealLost", saved.getId(), stagePayload);
+        if (saved.getStage() == DealStage.WON || saved.getStage() == DealStage.LOST) {
+            eventPublisher.publishDealStageChange(saved.getId(), saved.getStage());
         }
 
         return mapper.toDto(saved);
@@ -129,8 +157,7 @@ public class DealServiceImpl implements DealService {
 
         repository.delete(existing);
 
-        Map<String, Object> payload = Map.of("id", id.toString());
-        eventPublisher.publish("DealDeleted", id, payload);
+        eventPublisher.publishDealDeleted(existing.getId());
     }
 
     @Override
